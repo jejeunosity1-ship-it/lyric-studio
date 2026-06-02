@@ -377,6 +377,18 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
   <div class="scroll-area">
     <div class="form-content">
       <div class="form-section">
+        <div class="form-section-title">API Key</div>
+        <div class="field">
+          <label class="field-label">Anthropic API Key</label>
+          <div style="display:flex;gap:8px">
+            <input class="field-input" id="inp-api-key" type="password" placeholder="sk-ant-..." style="flex:1;font-family:var(--mono);font-size:12px">
+            <button class="btn btn-dark btn-sm" onclick="saveApiKey()">저장</button>
+          </div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:6px;line-height:1.6">키는 브라우저 로컬에만 저장됩니다.<br>anthropic.com → API Keys에서 발급받으세요.</div>
+        </div>
+        <div id="api-key-status"></div>
+      </div>
+      <div class="form-section">
         <div class="form-section-title">커스텀 장르 추가</div>
         <div style="display:flex;gap:8px">
           <input class="field-input" id="inp-custom-genre" placeholder="장르 이름" style="flex:1">
@@ -423,10 +435,36 @@ let S = {
 function loadStorage(){
   const d = localStorage.getItem('lyricStudio');
   if(d) S.songs = JSON.parse(d).songs || [];
-
 }
 function saveStorage(){
   localStorage.setItem('lyricStudio', JSON.stringify({songs: S.songs}));
+}
+
+function saveApiKey(){
+  const val = document.getElementById('inp-api-key').value.trim();
+  if(!val){ alert('API 키를 입력해주세요.'); return; }
+  if(!val.startsWith('sk-ant-')){ alert('올바른 Anthropic API 키 형식이 아닙니다.\n(sk-ant- 로 시작해야 합니다)'); return; }
+  localStorage.setItem('lyricStudio_apiKey', val);
+  document.getElementById('inp-api-key').value = '';
+  renderApiKeyStatus();
+  alert('API 키가 저장되었습니다.');
+}
+
+function renderApiKeyStatus(){
+  const key = localStorage.getItem('lyricStudio_apiKey');
+  const el = document.getElementById('api-key-status');
+  if(!el) return;
+  if(key){
+    el.innerHTML = `<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(22,160,133,0.1);border:1px solid rgba(22,160,133,0.3);border-radius:4px;padding:5px 10px;font-family:var(--mono);font-size:10px;color:#16A085;margin-top:6px">✓ 키 등록됨 &nbsp;<button onclick="clearApiKey()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:0">삭제</button></div>`;
+  } else {
+    el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);margin-top:4px">⚠ API 키가 없습니다. 위에서 입력 후 저장하세요.</div>`;
+  }
+}
+
+function clearApiKey(){
+  if(!confirm('API 키를 삭제할까요?')) return;
+  localStorage.removeItem('lyricStudio_apiKey');
+  renderApiKeyStatus();
 }
 
 
@@ -821,11 +859,18 @@ ${structText}
   showLoading('AI가 가사를 쓰고 있어요...');
 
   try{
+    const apiKey = localStorage.getItem('lyricStudio_apiKey');
+    if(!apiKey){ hideLoading(); alert('Settings에서 Anthropic API 키를 먼저 입력해주세요.'); showScreen('screen-settings'); return; }
     const res = await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-allow-browser': 'true',
+      },
       body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
+        model:'claude-sonnet-4-5',
         max_tokens:2000,
         messages:[{role:'user',content:prompt}]
       })
@@ -943,6 +988,7 @@ function copyAll(){
 loadStorage();
 renderHome();
 renderSettingsGenres();
+renderApiKeyStatus();
 </script>
 </body>
 </html>
